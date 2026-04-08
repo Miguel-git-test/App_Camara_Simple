@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fast Cam</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <meta name="theme-color" content="#000000">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Viewfinder -->
+        <video id="viewfinder" autoplay playsinline muted></video>
+        
+        <!-- Hidden canvas for capture -->
+        <canvas id="capture-canvas"></canvas>
+
+        <!-- Top Controls -->
+        <div class="controls top">
+            <button id="flash-btn" class="icon-btn" title="Toggle Flash">
+                <i data-lucide="zap-off"></i>
+            </button>
+            <button id="switch-camera-btn" class="icon-btn" title="Switch Camera">
+                <i data-lucide="refresh-cw"></i>
+            </button>
+        </div>
+
+        <!-- Middle UI Indicators (e.g., Recording Time) -->
+        <div id="recording-indicator" class="hidden">
+            <span class="dot"></span>
+            <span id="recording-timer">00:00</span>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="controls bottom">
+            <button id="gallery-btn" class="gallery-thumb" title="Gallery">
+                <div class="thumb-preview" id="last-item-preview"></div>
+            </button>
+            
+            <div class="main-actions">
+                <button id="record-btn" class="action-btn record" title="Record Video">
+                    <div class="inner-circle"></div>
+                </button>
+                <button id="photo-btn" class="action-btn photo" title="Take Photo">
+                    <div class="inner-circle"></div>
+                </button>
+            </div>
+            
+            <div class="right-placeholder"></div>
+        </div>
+
+        <!-- Gallery Overlay -->
+        <div id="gallery-overlay" class="hidden">
+            <header>
+                <button id="close-gallery" class="icon-btn">
+                    <i data-lucide="x"></i>
+                </button>
+                <h2>Galería</h2>
+            </header>
+            <div id="gallery-grid"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Init Lucide
+        lucide.createIcons();
+        
+        // Register SW
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('SW Registered'))
+                .catch(err => console.log('SW Error:', err));
+        }
+    </script>
+</body>
+</html>
