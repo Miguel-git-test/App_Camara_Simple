@@ -34,8 +34,9 @@ async function initCamera() {
     const constraints = {
         video: {
             facingMode: currentFacingMode,
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 }
         },
         audio: true
     };
@@ -166,15 +167,21 @@ function startRecording() {
     
     // Check supported mime types
     const types = [
-        'video/webm;codecs=vp9,opus',
+        'video/mp4;codecs=avc1',
+        'video/webm;codecs=h264',
         'video/webm;codecs=vp8,opus',
         'video/webm',
         'video/mp4'
     ];
     let selectedType = types.find(type => MediaRecorder.isTypeSupported(type)) || '';
     
+    const options = {
+        mimeType: selectedType,
+        videoBitsPerSecond: 2500000 // 2.5 Mbps para 720p fluido
+    };
+
     try {
-        mediaRecorder = new MediaRecorder(stream, { mimeType: selectedType });
+        mediaRecorder = new MediaRecorder(stream, options);
     } catch (e) {
         mediaRecorder = new MediaRecorder(stream); // Fallback to default
     }
@@ -188,7 +195,7 @@ function startRecording() {
         saveToGallery(blob, 'video');
     };
 
-    mediaRecorder.start();
+    mediaRecorder.start(1000); // Guardar datos cada segundo para aliviar la memoria
     
     // UI update
     recordBtn.classList.add('recording');
