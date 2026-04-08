@@ -34,8 +34,8 @@ async function initCamera() {
     const constraints = {
         video: {
             facingMode: currentFacingMode,
-            width: { ideal: 4096 }, // Ask for high res
-            height: { ideal: 2160 }
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
         },
         audio: true
     };
@@ -48,7 +48,19 @@ async function initCamera() {
         updateCapabilities();
     } catch (err) {
         console.error("Camera error:", err);
-        alert("No se pudo acceder a la cámara. Asegúrate de estar en HTTPS.");
+        // Si falla con audio, intentamos solo video como fallback
+        if (constraints.audio) {
+            try {
+                constraints.audio = false;
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                viewfinder.srcObject = stream;
+                updateCapabilities();
+                return;
+            } catch (e2) {
+                err = e2;
+            }
+        }
+        alert("Error de cámara (" + err.name + "): " + err.message + "\n\nRevisa los permisos en los ajustes del navegador.");
     }
 }
 
