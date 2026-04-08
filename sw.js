@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fastcam-cache-v2';
+const CACHE_NAME = 'fastcam-cache-v3';
 const ASSETS = [
   './',
   './index.html',
