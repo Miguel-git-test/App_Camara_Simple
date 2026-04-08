@@ -8,9 +8,6 @@ const recordBtn = document.getElementById('record-btn');
 const switchBtn = document.getElementById('switch-camera-btn');
 const flashBtn = document.getElementById('flash-btn');
 const galleryBtn = document.getElementById('gallery-btn');
-const closeGalleryBtn = document.getElementById('close-gallery');
-const galleryOverlay = document.getElementById('gallery-overlay');
-const galleryGrid = document.getElementById('gallery-grid');
 const lastPreview = document.getElementById('last-item-preview');
 const recordingIndicator = document.getElementById('recording-indicator');
 const recordingTimer = document.getElementById('recording-timer');
@@ -25,74 +22,98 @@ let timerInterval = null;
 let isFlashOn = false;
 let db = null;
 
-// Initialize camera
+// Initialize camera with auto-hardware detection
 async function initCamera() {
     if (stream) {
         stream.getTracks().forEach(track => track.stop());
     }
 
-    const constraints = {
-        video: {
-            facingMode: currentFacingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 }
-        },
-        audio: true
-    };
+    const idealQualities = [
+        { w: 1920, h: 1080, name: 'Full HD' },
+        { w: 1280, h: 720, name: 'HD' },
+        { w: 640, h: 480, name: 'SD' }
+    ];
+
+    let successStream = null;
+    let lastError = null;
+
+    async function tryGetStream(w, h, audio = true) {
+        const c = {
+            video: {
+                facingMode: currentFacingMode,
+                width: { ideal: w },
+                height: { ideal: h },
+                frameRate: { ideal: 30 }
+            },
+            audio: audio
+        };
+        try {
+            return await navigator.mediaDevices.getUserMedia(c);
+        } catch (e) {
+            lastError = e;
+            return null;
+        }
+    }
 
     try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error("Su navegador no soporta el acceso a la cámara (MediaDevices API no encontrada).");
+            throw new Error("Su navegador no soporta el acceso a la cámara.");
         }
 
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        viewfinder.srcObject = stream;
-        
-        // Update flash button visibility and state
-        updateCapabilities();
-    } catch (err) {
-        console.error("Camera error:", err);
-        // Si falla con audio, intentamos solo video como fallback
-        if (constraints.audio) {
-            try {
-                constraints.audio = false;
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                viewfinder.srcObject = stream;
-                updateCapabilities();
-                return;
-            } catch (e2) {
-                err = e2;
+        // 1. Probar resoluciones de mayor a menor con audio
+        for (const quality of idealQualities) {
+            console.log(`Intentando: ${quality.name}`);
+            successStream = await tryGetStream(quality.w, quality.h, true);
+            if (successStream) break;
+        }
+
+        // 2. Si falló todo con audio, probar sin audio (fallback)
+        if (!successStream) {
+            console.log("Reintentando sin audio...");
+            for (const quality of idealQualities) {
+                successStream = await tryGetStream(quality.w, quality.h, false);
+                if (successStream) break;
             }
         }
+
+        if (!successStream) throw lastError || new Error("No se pudo iniciar la cámara.");
+
+        stream = successStream;
+        viewfinder.srcObject = stream;
+        updateCapabilities();
+        
+    } catch (err) {
+        console.error("Camera error:", err);
         
         // Diagnóstico adicional
-        let devicesInfo = "Cámaras detectadas: ";
+        let devicesInfo = "Cámaras: ";
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
             const cams = devices.filter(d => d.kind === 'videoinput');
-            devicesInfo += cams.length > 0 ? cams.length : "Ninguna";
+            devicesInfo += cams.length > 0 ? cams.length : "0";
         } catch (e) {
-            devicesInfo += "Error al listar";
+            devicesInfo += "Error";
         }
 
-        alert("ERROR v1.1 (" + err.name + "):\n" + err.message + "\n\n" + devicesInfo + "\n\n1. Revisa permisos en Ajustes del móvil.\n2. Asegúrate de no tener otra app usando la cámara.\n3. Prueba a darle al botón RECARGAR.");
+        alert("ERROR v1.2 (" + (err.name || 'Error') + "):\n" + (err.message || 'Desconocido') + "\n\n" + devicesInfo + "\n\n1. Revisa permisos.\n2. Prueba RECARGAR.");
         
-        // Mostrar botón de recarga forzada
-        const reloadBtn = document.createElement('button');
-        reloadBtn.textContent = "RECARGAR APP";
-        reloadBtn.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:999; padding:20px; background:red; color:white; border:none; font-weight:bold; border-radius:10px;";
-        reloadBtn.onclick = () => {
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(regs => {
-                    for(let reg of regs) reg.unregister();
+        if (!document.getElementById('retry-btn')) {
+            const reloadBtn = document.createElement('button');
+            reloadBtn.id = 'retry-btn';
+            reloadBtn.textContent = "RECARGAR APP";
+            reloadBtn.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:999; padding:20px; background:red; color:white; border:none; font-weight:bold; border-radius:10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);";
+            reloadBtn.onclick = () => {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(regs => {
+                        for(let reg of regs) reg.unregister();
+                        window.location.reload(true);
+                    });
+                } else {
                     window.location.reload(true);
-                });
-            } else {
-                window.location.reload(true);
-            }
-        };
-        document.body.appendChild(reloadBtn);
+                }
+            };
+            document.body.appendChild(reloadBtn);
+        }
     }
 }
 
@@ -107,7 +128,6 @@ async function updateCapabilities() {
     const track = stream.getVideoTracks()[0];
     const caps = track.getCapabilities();
     
-    // Check if torch is supported
     if (caps.torch) {
         flashBtn.classList.remove('hidden');
         const settings = track.getSettings();
@@ -140,7 +160,6 @@ flashBtn.onclick = toggleFlash;
 
 // Take Photo
 photoBtn.onclick = async () => {
-    // Visual feedback
     photoBtn.style.transform = 'scale(0.8)';
     setTimeout(() => photoBtn.style.transform = 'scale(1)', 100);
 
@@ -165,7 +184,6 @@ recordBtn.onclick = () => {
 function startRecording() {
     recordedChunks = [];
     
-    // Check supported mime types
     const types = [
         'video/mp4;codecs=avc1',
         'video/webm;codecs=h264',
@@ -177,13 +195,13 @@ function startRecording() {
     
     const options = {
         mimeType: selectedType,
-        videoBitsPerSecond: 2500000 // 2.5 Mbps para 720p fluido
+        videoBitsPerSecond: 2500000 
     };
 
     try {
         mediaRecorder = new MediaRecorder(stream, options);
     } catch (e) {
-        mediaRecorder = new MediaRecorder(stream); // Fallback to default
+        mediaRecorder = new MediaRecorder(stream); 
     }
     
     mediaRecorder.ondataavailable = (e) => {
@@ -195,9 +213,8 @@ function startRecording() {
         saveToGallery(blob, 'video');
     };
 
-    mediaRecorder.start(1000); // Guardar datos cada segundo para aliviar la memoria
+    mediaRecorder.start(1000); 
     
-    // UI update
     recordBtn.classList.add('recording');
     recordingIndicator.classList.remove('hidden');
     startTimer();
@@ -255,7 +272,6 @@ function saveToGallery(blob, type) {
         const url = URL.createObjectURL(blob);
         lastPreview.style.backgroundImage = `url(${url})`;
         
-        // Auto-descarga para que aparezca en la galería del móvil
         const a = document.createElement('a');
         a.href = url;
         a.download = `fastcam_${Date.now()}.${type === 'image' ? 'jpg' : 'webm'}`;

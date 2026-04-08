@@ -122,15 +122,17 @@ body {
 }
 
 .action-btn.record .inner-circle {
-    width: 25px;
-    height: 25px;
+    width: 60px;
+    height: 60px;
     background: var(--primary);
-    border-radius: 4px;
-    transition: border-radius 0.3s ease;
+    border-radius: 50%; /* CIRCLE (IDLE) */
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .action-btn.record.recording .inner-circle {
-    border-radius: 50%;
+    border-radius: 8px; /* SQUARE (STOP) */
+    width: 30px;
+    height: 30px;
     animation: pulse 1s infinite alternate;
 }
 
