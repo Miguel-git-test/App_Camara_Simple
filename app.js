@@ -41,6 +41,10 @@ async function initCamera() {
     };
 
     try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("Su navegador no soporta el acceso a la cámara (MediaDevices API no encontrada).");
+        }
+
         stream = await navigator.mediaDevices.getUserMedia(constraints);
         viewfinder.srcObject = stream;
         
@@ -60,7 +64,34 @@ async function initCamera() {
                 err = e2;
             }
         }
-        alert("Error de cámara (" + err.name + "): " + err.message + "\n\nRevisa los permisos en los ajustes del navegador.");
+        
+        // Diagnóstico adicional
+        let devicesInfo = "Cámaras detectadas: ";
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cams = devices.filter(d => d.kind === 'videoinput');
+            devicesInfo += cams.length > 0 ? cams.length : "Ninguna";
+        } catch (e) {
+            devicesInfo += "Error al listar";
+        }
+
+        alert("ERROR v1.1 (" + err.name + "):\n" + err.message + "\n\n" + devicesInfo + "\n\n1. Revisa permisos en Ajustes del móvil.\n2. Asegúrate de no tener otra app usando la cámara.\n3. Prueba a darle al botón RECARGAR.");
+        
+        // Mostrar botón de recarga forzada
+        const reloadBtn = document.createElement('button');
+        reloadBtn.textContent = "RECARGAR APP";
+        reloadBtn.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:999; padding:20px; background:red; color:white; border:none; font-weight:bold; border-radius:10px;";
+        reloadBtn.onclick = () => {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(regs => {
+                    for(let reg of regs) reg.unregister();
+                    window.location.reload(true);
+                });
+            } else {
+                window.location.reload(true);
+            }
+        };
+        document.body.appendChild(reloadBtn);
     }
 }
 
@@ -216,6 +247,12 @@ function saveToGallery(blob, type) {
     transaction.oncomplete = () => {
         const url = URL.createObjectURL(blob);
         lastPreview.style.backgroundImage = `url(${url})`;
+        
+        // Auto-descarga para que aparezca en la galería del móvil
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `fastcam_${Date.now()}.${type === 'image' ? 'jpg' : 'webm'}`;
+        a.click();
     };
 }
 
@@ -234,39 +271,12 @@ async function loadGalleryPreview() {
     };
 }
 
-// Gallery UI
+// Gallery UI - Trigger native file explorer
+const nativeGalleryInput = document.getElementById('native-gallery-input');
+
 galleryBtn.onclick = () => {
-    galleryOverlay.classList.remove('hidden');
-    renderGallery();
+    nativeGalleryInput.click();
 };
-
-closeGalleryBtn.onclick = () => {
-    galleryOverlay.classList.add('hidden');
-};
-
-function renderGallery() {
-    galleryGrid.innerHTML = '';
-    const transaction = db.transaction(['gallery'], 'readonly');
-    const store = transaction.objectStore('gallery');
-    const request = store.getAll();
-
-    request.onsuccess = (e) => {
-        const items = e.target.result.reverse();
-        items.forEach(item => {
-            const url = URL.createObjectURL(item.blob);
-            let el;
-            if (item.type === 'image') {
-                el = document.createElement('img');
-                el.src = url;
-            } else {
-                el = document.createElement('video');
-                el.src = url;
-                el.onclick = () => el.play(); // Simple play on click
-            }
-            galleryGrid.appendChild(el);
-        });
-    };
-}
 
 // Start
 initDB();
